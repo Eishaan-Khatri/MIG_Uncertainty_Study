@@ -29,7 +29,55 @@ I used ECG denoising as a controlled testbed because:
 The goal wasn't building the best denoiser - it was understanding how uncertainty behaves when things break.
 
 ---
+Dataset Description and Construction
 
+This project does not use the full MIT-BIH Arrhythmia dataset or any clinical ECG benchmark. Instead, we construct a controlled signal reconstruction benchmark derived from a real ECG waveform provided by SciPy.
+
+Base Signal Source
+
+We use the ECG signal distributed with SciPy (scipy.datasets.electrocardiogram), which is a real, digitized electrocardiogram waveform sampled at 360 Hz. This signal originates from the MIT-BIH Arrhythmia Database but is provided as a single, unlabeled canonical waveform intended for signal processing research and demonstrations.
+
+Importantly:
+
+The signal contains real ECG morphology
+
+It has no diagnostic labels
+
+It represents one continuous recording, not a population-level dataset
+
+Dataset Construction
+
+From this base signal, we construct a self-supervised reconstruction dataset using a custom NoisyECGDataset class. The process is as follows:
+
+The clean ECG waveform is segmented into fixed-length windows.
+
+Each segment is corrupted using controlled perturbations:
+
+Additive Gaussian noise (parameterized by noise_level)
+
+Random masking (parameterized by mask_prob)
+
+The model is trained to reconstruct the original clean signal from the corrupted input.
+
+Each sample therefore consists of:
+
+Input: Noisy and partially masked ECG segment
+
+Target: Corresponding clean ECG segment
+
+This setup enables supervised learning without external annotations.
+
+Train / Validation / Test Splits
+
+All datasets are derived from the same underlying ECG waveform but differ in corruption severity:
+
+Split	Noise Level	Purpose
+Train	0.1	Model training
+Validation	0.1	Model selection
+Test (Standard)	0.1	In-distribution evaluation
+Test (Extreme)	0.5	Out-of-distribution evaluation
+
+The Extreme test set introduces a deliberate distribution shift by significantly increasing noise and masking, allowing systematic evaluation of uncertainty behavior under stress.
 ## Experimental Setup
 
 **Data**: MIT-BIH ECG signals, windowed into 256-timestep segments
