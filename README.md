@@ -29,76 +29,100 @@ I used ECG denoising as a controlled testbed because:
 The goal wasn't building the best denoiser - it was understanding how uncertainty behaves when things break.
 
 ---
-Dataset Description and Construction
+# Dataset Description and Construction
 
-This project does not use the full MIT-BIH Arrhythmia dataset or any clinical ECG benchmark. Instead, we construct a controlled signal reconstruction benchmark derived from a real ECG waveform provided by SciPy.
+This project does **not** use the full MIT-BIH Arrhythmia dataset or any clinical ECG benchmark. Instead, it constructs a **controlled signal reconstruction benchmark** derived from a real ECG waveform provided by **SciPy**.
 
-Base Signal Source
+---
 
-We use the ECG signal distributed with SciPy (scipy.datasets.electrocardiogram), which is a real, digitized electrocardiogram waveform sampled at 360 Hz. This signal originates from the MIT-BIH Arrhythmia Database but is provided as a single, unlabeled canonical waveform intended for signal processing research and demonstrations.
+## Base Signal Source
 
-Importantly:
+We use the ECG signal distributed with SciPy:
 
-The signal contains real ECG morphology
 
-It has no diagnostic labels
+scipy.datasets.electrocardiogram
 
-It represents one continuous recording, not a population-level dataset
 
-Dataset Construction
+This is a real, digitized electrocardiogram waveform sampled at **360 Hz**. The signal originates from the **MIT-BIH Arrhythmia Database**, but is provided as a **single, unlabeled canonical waveform** intended for signal processing research and demonstrations.
 
-From this base signal, we construct a self-supervised reconstruction dataset using a custom NoisyECGDataset class. The process is as follows:
+**Key properties:**
 
-The clean ECG waveform is segmented into fixed-length windows.
+- Contains real ECG morphology  
+- No diagnostic or clinical labels  
+- One continuous recording (not a population-level dataset)
 
-Each segment is corrupted using controlled perturbations:
+---
 
-Additive Gaussian noise (parameterized by noise_level)
+## Dataset Construction
 
-Random masking (parameterized by mask_prob)
+From this base signal, we construct a **self-supervised reconstruction dataset** using a custom `NoisyECGDataset` class.
 
-The model is trained to reconstruct the original clean signal from the corrupted input.
+### Construction pipeline:
 
-Each sample therefore consists of:
+1. The clean ECG waveform is segmented into fixed-length windows.
+2. Each segment is corrupted using controlled perturbations:
+   - **Additive Gaussian noise** (parameterized by `noise_level`)
+   - **Random masking** (parameterized by `mask_prob`)
+3. The model is trained to reconstruct the original clean signal from the corrupted input.
 
-Input: Noisy and partially masked ECG segment
+Each sample consists of:
 
-Target: Corresponding clean ECG segment
+- **Input:** Noisy and partially masked ECG segment  
+- **Target:** Corresponding clean ECG segment  
 
-This setup enables supervised learning without external annotations.
+This enables supervised learning **without external annotations**.
 
-Train / Validation / Test Splits
+---
 
-All datasets are derived from the same underlying ECG waveform but differ in corruption severity:
+## Train / Validation / Test Splits
 
-Split	Noise Level	Purpose
-Train	0.1	Model training
-Validation	0.1	Model selection
-Test (Standard)	0.1	In-distribution evaluation
-Test (Extreme)	0.5	Out-of-distribution evaluation
+All datasets are derived from the **same underlying ECG waveform**, but differ in corruption severity.
 
-The Extreme test set introduces a deliberate distribution shift by significantly increasing noise and masking, allowing systematic evaluation of uncertainty behavior under stress.
+| Split            | Noise Level | Purpose                      |
+|------------------|-------------|------------------------------|
+| Train            | 0.1         | Model training               |
+| Validation       | 0.1         | Model selection              |
+| Test (Standard)  | 0.1         | In-distribution evaluation   |
+| Test (Extreme)   | 0.5         | Out-of-distribution evaluation |
+
+The **Extreme** test set introduces a deliberate **distribution shift** by significantly increasing noise and masking, enabling systematic evaluation of uncertainty behavior under stress.
+
+---
+
 ## Experimental Setup
 
-**Data**: MIT-BIH ECG signals, windowed into 256-timestep segments
-- ~64,000 training samples
-- ~21,000 validation samples  
-- ~21,000 test samples
+- **Data:** MIT-BIH ECG signal, windowed into 256-timestep segments  
+- **Approximate dataset sizes:**
+  - ~64,000 training samples  
+  - ~21,000 validation samples  
+  - ~21,000 test samples  
 
-**Two evaluation scenarios:**
+### Evaluation Scenarios
 
-| Scenario | Noise (σ) | Masking | Purpose |
-|----------|-----------|---------|---------|
-| **Standard** | 0.1 | 10% | In-distribution testing |
-| **Extreme** | 0.5 | 30% | Out-of-distribution stress test |
+| Scenario  | Noise (σ) | Masking | Purpose                         |
+|----------|-----------|---------|---------------------------------|
+| Standard | 0.1       | 10%     | In-distribution testing         |
+| Extreme  | 0.5       | 30%     | Out-of-distribution stress test |
 
-**Critical design choice**: All models trained only on Standard noise (σ=0.1), then tested on both scenarios. This simulates real deployment where training data is cleaner than production conditions.
+**Critical design choice:**  
+All models are trained **only on Standard noise (σ = 0.1)** and evaluated on **both** scenarios. This mirrors real-world deployment, where training data is typically cleaner than production conditions.
 
-**Why these numbers?** The baseline deterministic model achieves:
-- Standard: MSE = 0.0012 (handles it fine)
-- Extreme: MSE = 0.0469 (complete breakdown)
+---
 
-That 40× error increase is extreme by design - I wanted to see methods fail to understand *how* they fail.
+## Motivation for the Design
+
+The baseline deterministic model achieves:
+
+- **Standard:** MSE = 0.0012 (handles the task well)
+- **Extreme:** MSE = 0.0469 (complete breakdown)
+
+This ~**40× increase in error** is **intentional**. The goal is not to optimize performance under extreme corruption, but to **force failure** in order to study:
+
+- How models fail  
+- Whether uncertainty estimates respond meaningfully  
+- Where standard uncertainty methods break down  
+
+This benchmark is explicitly designed to expose limitations rather than hide them.
 
 ---
 
